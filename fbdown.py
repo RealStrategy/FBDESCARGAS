@@ -5,15 +5,22 @@ import os
 import sys
 import platform
 import subprocess
-import shutil
+import re
 import time
 from urllib.parse import urlparse
 
 # Constantes
-VERSION = "1.0"
+VERSION = "1.1"
 AUTHOR = "@RealStrategy"
 CANAL = "https://www.youtube.com/@zonatodoreal"
 SUPPORTED_DOMAINS = ['facebook.com', 'fb.watch']
+
+def limpiar_nombre_archivo(nombre):
+    """Limpia el nombre del archivo para que sea válido en Windows"""
+    nombre = re.sub(r'[\\/*?:"<>|]', '', nombre)  # Elimina caracteres inválidos
+    nombre = re.sub(r'\s+', ' ', nombre).strip()  # Reduce múltiples espacios
+    nombre = nombre[:150]  # Limita la longitud del nombre
+    return nombre
 
 def clear_screen():
     """Limpia la pantalla de la consola"""
@@ -107,19 +114,20 @@ def es_url_facebook_valida(url):
         return False
 
 def descargar_video_facebook(url):
-    """Descarga videos de Facebook"""
+    """Descarga video de Facebook"""
     try:
         yt_dlp = verificar_instalacion_yt_dlp()
         carpeta_descargas = obtener_carpeta_descargas()
         cookies_path = verificar_cookies_facebook()
         
         config = {
-            'format': 'best[ext=mp4]',
+            'format': 'best',  # Descarga el mejor formato disponible
             'outtmpl': os.path.join(carpeta_descargas, '%(title)s.%(ext)s'),
             'progress_hooks': [mostrar_progreso],
             'retries': 5,
             'nocheckcertificate': True,
             'quiet': True,
+            'windowsfilenames': True,  # Para nombres de archivo compatibles con Windows
         }
         
         if cookies_path:
@@ -131,18 +139,29 @@ def descargar_video_facebook(url):
             print("\nObteniendo información del video...")
             info = ydl.extract_info(url, download=False)
             
+            # Limpiar el título para el nombre del archivo
+            titulo_limpio = limpiar_nombre_archivo(info.get('title', 'video_facebook'))
+            
             print("\n--- INFORMACIÓN DEL VIDEO ---")
-            print(f"\nTítulo: {info.get('title', 'Desconocido')}")
+            print(f"\nTítulo original: {info.get('title', 'Desconocido')}")
+            print(f"Título limpio: {titulo_limpio}")
+            print(f"Duración: {info.get('duration', 'Desconocido')} segundos")
+            print(f"Formato: {info.get('ext', 'Desconocido')}")
+            print(f"Resolución: {info.get('resolution', 'Desconocido')}")
             
             confirmar = input("\n¿Descargar este video? (s/n): ").lower()
             if confirmar != 's':
                 print("\nDescarga cancelada")
                 return
             
-            print("\nIniciando descarga...")
-            ydl.download([url])
+            # Configurar nombre de archivo limpio
+            config['outtmpl'] = os.path.join(carpeta_descargas, f'{titulo_limpio}.%(ext)s')
             
-            print(f"\n✓ Descarga completada: {info['title']}.mp4")
+            print("\nIniciando descarga...")
+            with yt_dlp.YoutubeDL(config) as ydl_clean:
+                ydl_clean.download([url])
+            
+            print(f"\n✓ Descarga completada: {titulo_limpio}.{info.get('ext', 'mp4')}")
             print(f"Ubicación: {carpeta_descargas}")
             
     except Exception as e:
@@ -180,7 +199,7 @@ if __name__ == "__main__":
         # Modo interactivo
         while True:
             print(" MENÚ PRINCIPAL ".center(50, "-"))
-            print("\n1. Descargar video de Facebook")
+            print("\n1. Descargar Video de Facebook")
             print("2. Instrucciones")
             print("3. Salir")
             print("-"*50 + "\n")
